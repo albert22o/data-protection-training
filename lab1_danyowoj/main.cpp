@@ -18,12 +18,14 @@ int main()
 {
     srand(time(0));
 
-    long long a, b;
+    long long a, b, c;
     int choice;
     cout << "Выберите способ задания чисел a и b:\n";
     cout << "1 - Ввод с клавиатуры\n";
     cout << "2 - Генерация случайных чисел\n";
     cout << "3 - Генерация случайных простых чисел\n";
+    cout << "4 - Проверка числа на простоту\n";
+    cout << "5 - Возведение по модулю\n";
     cout << "Ваш выбор: ";
     cin >> choice;
 
@@ -55,6 +57,23 @@ int main()
             b = generate_prime(10, a);
         } while (b > a);
         cout << "Сгенерированы простые числа: a = " << a << ", b = " << b << endl;
+    }
+    else if (choice == 4){
+        cout << "Введите число для проверки: ";
+        cin >> a;
+        if (is_probably_prime(a)){
+            cout << "Число предположительно простое" << endl;
+        }
+        else{
+            cout << "Число составное" << endl;
+        }
+        return 0;
+    }
+    else if (choice == 5){
+            cout << "Введите основание a, степень b и mod: ";
+        cin >> a >> b >> c;
+        cout << "Модуль: " << mod_pow(a,b,c) << endl;
+        return 0;
     }
     else
     {
