@@ -1,4 +1,10 @@
-//* g++ main.cpp -L. -llab1 -o main && ./main
+/* 
+*Сборки библиотеки на Linux:
+g++ -fPIC -DBUILD_DLL -shared lab1.cpp -o liblab1.so
+
+*Запуск на Linux:
+g++ main.cpp -L. -llab1 -o main && ./main
+*/
 #include <iostream>
 #include "lab1.h"
 
