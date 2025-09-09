@@ -23,6 +23,7 @@ int main()
         cout << "1 - Расширенный алгоритм Евклида\n";
         cout << "2 - Быстрое возведение в степень по модулю\n";
         cout << "3 - Проверка простоты (тест Ферма)\n";
+        cout << "4 - Поиск дискретного логарифма\n";
         cout << "0 - Выход\n";
         cout << "Ваш выбор: ";
         cin >> choice;
@@ -91,6 +92,33 @@ int main()
                 std::cout << "  " << n << " -> "
                           << (is_probably_prime(n, 5) ? "вероятно простое" : "составное")
                           << std::endl;
+            }
+            waitForAnyKey();
+            break;
+        }
+
+        case 4:
+        {
+            // === ТЕСТ 4: Поиск дискретного логарифма ===
+            struct TestCase
+            {
+                long long a, y, p, expected;
+            };
+
+            TestCase tests[] = {
+                {2, 9, 11, 6},   // 2^6 mod 11 = 64 mod 11 = 9
+                {3, 10, 13, -1}, // нет такого x, что 3^x mod 13 = 10
+                {5, 8, 23, 6},   // 5^6 mod 23 = 8
+                {2, 1, 7, 0},    // 2^0 mod 7 = 1
+            };
+
+            cout << "\n[Baby-Step Giant-Step] тестирование:\n";
+
+            for (auto t : tests)
+            {
+                long long result = baby_step_giant_step(t.a, t.y, t.p);
+                cout << "a=" << t.a << ", y=" << t.y << ", p=" << t.p
+                     << " -> x=" << result << endl;
             }
             waitForAnyKey();
             break;

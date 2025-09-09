@@ -39,6 +39,7 @@ int main()
         cout << "3 - Генерация случайных простых чисел\n";
         cout << "4 - Проверка числа на простоту\n";
         cout << "5 - Возведение по модулю\n";
+        cout << "6 - Поиск дискретного логарифма\n";
         cout << "0 - Выход\n";
         cout << "Ваш выбор: ";
         cin >> choice;
@@ -111,6 +112,19 @@ int main()
             cout << "Результат: " << mod_pow(a, b, c) << endl;
             waitForAnyKey();
             break;
+
+        case 6:
+        {
+            cout << "\nВведите a, y, p (a^x = y mod p): ";
+            cin >> a >> b >> c;
+            long long x = baby_step_giant_step(a, b, c);
+            if (x != -1)
+                cout << "Решение: x = " << x << endl;
+            else
+                cout << "Решение не найдено" << endl;
+            waitForAnyKey();
+            break;
+        }
 
         case 0:
             cout << "\nВыход из программы.\n";

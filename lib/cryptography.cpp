@@ -2,6 +2,8 @@
 #include <stdexcept>
 #include <cstdlib>
 #include <time.h>
+#include <cmath>
+#include <unordered_map>
 
 long long mod_pow(long long base, long long exp, long long mod)
 {
@@ -73,4 +75,35 @@ std::tuple<long long, long long, long long> extended_gcd(long long a, long long 
 
     // Теперь U = (gcd, x, y)
     return {u1, u2, u3};
+}
+
+long long API baby_step_giant_step(long long a, long long y, long long p)
+{
+    long long m = (long long)ceil(sqrt(p));
+    std::unordered_map<long long, long long> baby_steps;
+
+    // Шаги младенца: y * a^j
+    for (long long j = 0; j < m; j++)
+    {
+        long long value = (y * mod_pow(a, j, p)) % p;
+        baby_steps[value] = j;
+    }
+
+    long long a_m = mod_pow(a, m, p);
+
+    // Шаги великана: (a^m)^i
+    long long gamma = 1;
+    for (long long i = 0; i <= m; i++)
+    {
+        if (baby_steps.count(gamma))
+        {
+            long long j = baby_steps[gamma];
+            long long x = i * m - j;
+            if (x >= 0)
+                return x % (p - 1);
+        }
+        gamma = (gamma * a_m) % p;
+    }
+
+    return -1; // решение не найдено
 }
