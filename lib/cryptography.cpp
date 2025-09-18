@@ -107,3 +107,25 @@ long long API baby_step_giant_step(long long a, long long y, long long p)
 
     return -1; // решение не найдено
 }
+
+long long dh_compute_shared(long long p, long long g, long long XA, long long XB)
+{
+    if (p <= 2)
+        throw std::invalid_argument("dh_compute_shared: p must be > 2");
+    if (!(g > 1 && g < p - 1))
+        throw std::invalid_argument("dh_compute_shared: g must satisfy 1 < g < p-1");
+    if (XA <= 0 || XB <= 0)
+        throw std::invalid_argument("dh_compute_shared: secrets must be positive");
+
+    long long YA = mod_pow(g, XA, p);
+    long long YB = mod_pow(g, XB, p);
+
+    long long K1 = mod_pow(YB, XA, p); // на стороне A
+    long long K2 = mod_pow(YA, XB, p); // на стороне B
+
+    if (K1 != K2)
+    {
+        throw std::runtime_error("dh_compute_shared: computed keys do not match (possible overflow or bad parameters)");
+    }
+    return K1;
+}

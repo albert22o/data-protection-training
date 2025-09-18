@@ -5,8 +5,6 @@
 #include <vector>
 #include "../lib/cryptography.h"
 
-// TODO: генерация значений для поиска дискретного логарифма
-
 using namespace std;
 
 long long generate_prime(long long low, long long high)
@@ -79,6 +77,7 @@ int main()
         cout << "2 - Проверка числа на простоту\n";
         cout << "3 - Обобщенный алгоритм Евклида\n";
         cout << "4 - Поиск дискретного логарифма\n";
+        cout << "5 - Построение общего ключа по схеме Диффи-Хеллмана\n";
         cout << "0 - Выход\n";
         cout << "Ваш выбор: ";
         cin >> choice;
@@ -224,6 +223,16 @@ int main()
                 break;
             }
 
+            break;
+        }
+        case 5:
+        {
+            long long p, g, XA, XB;
+            cout << "\nВведите p, g, XA, XB: ";
+            cin >> p >> g >> XA >> XB;
+            cout << "Общий ключ K для двух абонентов равен: " << dh_compute_shared(p, g, XA, XB) << endl;
+            //* При вводе 23 5 7 13 ответ должен быть 10
+            waitForAnyKey();
             break;
         }
         case 0:

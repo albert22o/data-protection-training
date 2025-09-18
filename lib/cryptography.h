@@ -20,3 +20,5 @@ std::tuple<long long, long long, long long> API
 extended_gcd(long long a, long long b);
 
 long long API baby_step_giant_step(long long a, long long y, long long p);
+
+long long dh_compute_shared(long long p, long long g, long long XA, long long XB);
