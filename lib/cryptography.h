@@ -13,12 +13,10 @@
 #endif
 
 long long API mod_pow(long long a, long long x, long long p);
-
-bool API is_probably_prime(long long p, int k = 5);
-
-std::tuple<long long, long long, long long> API
-extended_gcd(long long a, long long b);
+bool API is_probably_prime(long long p, int k = 25);
+std::tuple<long long, long long, long long> API extended_gcd(long long a, long long b);
 
 long long API baby_step_giant_step(long long a, long long y, long long p);
 
-long long dh_compute_shared(long long p, long long g, long long XA, long long XB);
+long long API dh_compute_shared(long long p, long long g, long long XA, long long XB);
+std::tuple<long long, long long, long long, long long> API dh_generate_random_params();

@@ -40,6 +40,20 @@ bool is_probably_prime(long long p, int k)
     return true; // вероятно простое
 }
 
+long long generate_prime(long long low, long long high)
+{
+    long long num;
+
+    do
+    {
+        num = low + rand() % (high - low + 1);
+        if (num % 2 == 0)
+            num++;
+    } while (!is_probably_prime(num));
+
+    return num;
+}
+
 std::tuple<long long, long long, long long> extended_gcd(long long a, long long b)
 {
     if (a < b)
@@ -128,4 +142,47 @@ long long dh_compute_shared(long long p, long long g, long long XA, long long XB
         throw std::runtime_error("dh_compute_shared: computed keys do not match (possible overflow or bad parameters)");
     }
     return K1;
+}
+
+//* Генерация параметров для dh_compute_shared по алгоритму из теории:
+//* выбираем p = 2*q + 1, где q — простое (safe prime), затем g такое, что g^q mod p != 1.
+//* Возвращает (p, g, XA, XB)
+std::tuple<long long, long long, long long, long long> API dh_generate_random_params()
+{
+    srand(time(0));
+
+    long long p = 0;
+    long long q = 0;
+
+    const long long MIN_Q = 5000;
+    const long long RANGE_Q = 25000;
+
+    while (true)
+    {
+        long long candidate_q = generate_prime(MIN_Q, RANGE_Q);
+        long long candidate_p = 2 * candidate_q + 1;
+        if (candidate_p <= 2)
+            continue;
+
+        if (is_probably_prime(candidate_p))
+        {
+            q = candidate_q;
+            p = candidate_p;
+            break;
+        }
+    }
+
+    long long g = 0;
+
+    while (true)
+    {
+        g = 2 + (rand() % (p - 3));
+        if (mod_pow(g, q, p) != 1)
+            break;
+    }
+
+    long long XA = 2 + (rand() % (p - 3));
+    long long XB = 2 + (rand() % (p - 3));
+
+    return {p, g, XA, XB};
 }

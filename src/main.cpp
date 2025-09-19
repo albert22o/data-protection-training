@@ -84,6 +84,7 @@ int main()
 
         switch (choice)
         {
+        //! Возведение в степень по модулю
         case 1:
             cout << "\nВведите a, x, p (a^x mod p): ";
             cin >> a >> b >> c;
@@ -91,7 +92,7 @@ int main()
 
             waitForAnyKey();
             break;
-
+        //! Проверка числа на простоту
         case 2:
             cout << "\nВведите число для проверки: ";
             cin >> a;
@@ -102,7 +103,7 @@ int main()
 
             waitForAnyKey();
             break;
-
+        //! Обобщенный алгоритм Евклида
         case 3:
         {
             cout << "\nВыберите способ ввода чисел:" << endl;
@@ -114,6 +115,7 @@ int main()
 
             switch (subchoice)
             {
+            //* Ввод с клавиатуры
             case 1:
             {
                 while (true)
@@ -133,7 +135,7 @@ int main()
                 waitForAnyKey();
                 break;
             }
-
+            //* Случайные числа
             case 2:
             {
                 a = 10 + rand() % 90;
@@ -151,7 +153,7 @@ int main()
                 waitForAnyKey();
                 break;
             }
-
+            //* Случайные простые числа
             case 3:
             {
                 a = generate_prime(10, 200);
@@ -169,6 +171,7 @@ int main()
                 waitForAnyKey();
                 break;
             }
+            //* Ошибка
             default:
                 cout << "Неверный выбор!\n";
                 break;
@@ -176,7 +179,7 @@ int main()
 
             break;
         }
-
+        //! Поиск дискретного логарифма
         case 4:
         {
             cout << "\nВыберите способ ввода чисел:" << endl;
@@ -187,6 +190,7 @@ int main()
 
             switch (subchoice)
             {
+            //* Ввод с клавиатуры
             case 1:
             {
                 cout << "\nВведите a, y, p (y = a^x mod p): ";
@@ -200,6 +204,7 @@ int main()
                 waitForAnyKey();
                 break;
             }
+            //* Случайные числа
             case 2:
             {
                 c = generate_prime(50, 1000);
@@ -217,7 +222,7 @@ int main()
                 waitForAnyKey();
                 break;
             }
-
+            //* Ошибка
             default:
                 cout << "Неверный выбор!\n";
                 break;
@@ -225,20 +230,51 @@ int main()
 
             break;
         }
+        //! Поиск общего ключа по схеме Деффи-Хеллмана
         case 5:
         {
-            long long p, g, XA, XB;
-            cout << "\nВведите p, g, XA, XB: ";
-            cin >> p >> g >> XA >> XB;
-            cout << "Общий ключ K для двух абонентов равен: " << dh_compute_shared(p, g, XA, XB) << endl;
-            //* При вводе 23 5 7 13 ответ должен быть 10
-            waitForAnyKey();
+            cout << "\nВыберите способ ввода чисел:" << endl;
+            cout << "1 - Ввод с клавиатуры" << endl;
+            cout << "2 - Генерация случайных чисел" << endl;
+            cout << "Ваш выбор: ";
+            cin >> subchoice;
+
+            switch (subchoice)
+            {
+            //* Ввод с клавиатуры
+            case 1:
+            {
+                long long p, g, XA, XB;
+                cout << "\nВведите p, g, XA, XB: ";
+                cin >> p >> g >> XA >> XB;
+                cout << "Общий ключ K для двух абонентов равен: " << dh_compute_shared(p, g, XA, XB) << endl;
+                //* При вводе 23 5 7 13 ответ должен быть 10
+                waitForAnyKey();
+                break;
+            }
+            //* Случайные числа
+            case 2:
+            {
+                auto [p, g, XA, XB] = dh_generate_random_params();
+                cout << "\nСгенерированные параметры: p = " << p << ", g = " << g << ", XA = " << XA << ", XB = " << XB << endl;
+                cout << "Общий ключ K для двух абонентов равен: " << dh_compute_shared(p, g, XA, XB) << endl;
+                waitForAnyKey();
+                break;
+            }
+            //* Ошибка
+            default:
+                cout << "Неверный выбор!\n";
+                break;
+            }
+
             break;
         }
+
+        //! Выход
         case 0:
             cout << "\nВыход из программы.\n";
             return 0;
-
+        //! Ошибка
         default:
             cout << "Неверный выбор! Попробуйте снова.\n";
         }
