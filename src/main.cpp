@@ -7,59 +7,12 @@
 
 using namespace std;
 
-long long generate_prime(long long low, long long high)
-{
-    long long num;
-    do
-    {
-        num = low + rand() % (high - low + 1);
-    } while (!is_probably_prime(num));
-    return num;
-}
-
 void waitForAnyKey()
 {
     cout << "\nНажмите ENTER для продолжения...";
     cin.clear();                                         // Сбрасываем флаги ошибок
     cin.ignore(numeric_limits<streamsize>::max(), '\n'); // Очищаем буфер
     cin.get();                                           // Ждем нажатия клавиши
-}
-
-long long find_generator(long long p)
-{
-    vector<long long> factors;
-    long long phi = p - 1, n = phi;
-
-    // 1. Разложение p-1 на простые множители
-    for (long long i = 2; i * i <= n; i++)
-    {
-        if (n % i == 0)
-        {
-            factors.push_back(i);
-            while (n % i == 0)
-                n /= i;
-        }
-    }
-    if (n > 1)
-        factors.push_back(n);
-
-    // 2. Перебор кандидатов g
-    for (long long g = 2; g < p; g++)
-    {
-        bool ok = true;
-        // Проверка условия: g^(phi/f) != 1 (mod p) для всех простых делителей f числа phi
-        for (long long f : factors)
-        {
-            if (mod_pow(g, phi / f, p) == 1)
-            {
-                ok = false;
-                break;
-            }
-        }
-        if (ok)
-            return g; // нашли генератор
-    }
-    return -1; // если вдруг не нашли
 }
 
 int main()
@@ -195,7 +148,7 @@ int main()
             {
                 cout << "\nВведите a, y, p (y = a^x mod p): ";
                 cin >> a >> b >> c;
-                long long x = baby_step_giant_step(a, b, c);
+                long long x = bsgs(a, b, c);
                 if (x != -1)
                     cout << "Решение: x = " << x << endl;
                 else
@@ -207,15 +160,11 @@ int main()
             //* Случайные числа
             case 2:
             {
-                c = generate_prime(50, 1000);
-                a = find_generator(c);
-                long long x = rand() % (c - 1);
-                b = mod_pow(a, x, c);
-
-                cout << "\nСгенерированы числа: a = " << a << ", y = " << b << ", p = " << c << endl;
-                x = baby_step_giant_step(a, b, c);
-                if (x != -1)
-                    cout << "Решение: x = " << x << endl;
+                auto [a, y, p, secret_x] = bsgs_generate_random_params(50, 1000);
+                cout << "\nСгенерированы числа: a = " << a << ", y = " << y << ", p = " << p << endl;
+                long long solved = bsgs(a, y, p);
+                if (solved != -1)
+                    cout << "Решение: x = " << solved << endl;
                 else
                     cout << "Решение не найдено" << endl;
 

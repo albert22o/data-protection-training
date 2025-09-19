@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <time.h>
 #include <cmath>
+#include <vector>
 #include <unordered_map>
 
 long long mod_pow(long long base, long long exp, long long mod)
@@ -54,6 +55,51 @@ long long generate_prime(long long low, long long high)
     return num;
 }
 
+long long find_generator(long long p)
+{
+    if (p <= 2)
+        return -1; // для p<=2 нет смысла
+
+    // Опционально: требуем, чтобы p было простым (для простой и корректной работы)
+    if (!is_probably_prime(p, 5))
+        return -1;
+
+    std::vector<long long> factors;
+    long long phi = p - 1;
+    long long n = phi;
+
+    // 1. Разложение phi = p-1 на простые множители (без повторов)
+    for (long long i = 2; i * i <= n; i++)
+    {
+        if (n % i == 0)
+        {
+            factors.push_back(i);
+            while (n % i == 0)
+                n /= i;
+        }
+    }
+    if (n > 1)
+        factors.push_back(n);
+
+    // 2. Перебор кандидатов g
+    for (long long g = 2; g < p; g++)
+    {
+        bool ok = true;
+        for (long long f : factors)
+        {
+            if (mod_pow(g, phi / f, p) == 1)
+            {
+                ok = false;
+                break;
+            }
+        }
+        if (ok)
+            return g; // найден генератор
+    }
+
+    return -1; // если не нашли
+}
+
 std::tuple<long long, long long, long long> extended_gcd(long long a, long long b)
 {
     if (a < b)
@@ -91,7 +137,7 @@ std::tuple<long long, long long, long long> extended_gcd(long long a, long long 
     return {u1, u2, u3};
 }
 
-long long API baby_step_giant_step(long long a, long long y, long long p)
+long long API bsgs(long long a, long long y, long long p)
 {
     long long m = (long long)ceil(sqrt(p));
     std::unordered_map<long long, long long> baby_steps;
@@ -120,6 +166,27 @@ long long API baby_step_giant_step(long long a, long long y, long long p)
     }
 
     return -1; // решение не найдено
+}
+
+//* Генерация параметров для задачи дискретного логарифма (BSGS)
+//* Возвращает (a, y, p, x) — где y = a^x mod p
+std::tuple<long long, long long, long long, long long> API bsgs_generate_random_params(long long min_p, long long max_p)
+{
+    if (min_p < 3)
+        min_p = 3;
+    if (max_p <= min_p)
+        max_p = min_p + 100;
+
+    srand(time(0));
+
+    long long p = generate_prime(min_p, max_p);
+    long long a = find_generator(p);
+    long long x = 0;
+    if (p > 1)
+        x = rand() % (p - 1);
+    long long y = mod_pow(a, x, p);
+
+    return {a, y, p, x};
 }
 
 long long dh_compute_shared(long long p, long long g, long long XA, long long XB)
