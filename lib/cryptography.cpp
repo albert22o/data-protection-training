@@ -43,16 +43,47 @@ bool is_probably_prime(long long p, int k)
 
 long long generate_prime(long long low, long long high)
 {
-    long long num;
-
-    do
-    {
-        num = low + rand() % (high - low + 1);
-        if (num % 2 == 0)
+   // Проверяем, чтобы low было нечетным (для оптимизации)
+    if (low % 2 == 0 && low != 2) {
+        low++;
+    }
+    if (low < 2) low = 2;  // минимальное простое число
+    
+    // Пытаемся найти простое число (ограничим количество попыток)
+    const int MAX_ATTEMPTS = 10000;
+    int attempts = 0;
+    
+    while (attempts < MAX_ATTEMPTS) {
+        long long num = low + rand() % (high - low + 1);
+        
+        // Если число четное и не 2, делаем нечетным
+        if (num % 2 == 0 && num != 2) {
             num++;
-    } while (!is_probably_prime(num));
-
-    return num;
+            if (num > high) continue;  // если вышли за диапазон
+        }
+        
+        if (is_probably_prime(num)) {
+            return num;
+        }
+        
+        attempts++;
+        
+        // Альтернатива: последовательный поиск после многих неудачных попыток
+        if (attempts > MAX_ATTEMPTS / 2) {
+            // Переключаемся на последовательную проверку
+            for (long long candidate = low; candidate <= high; candidate += 2) {
+                if (candidate % 2 == 0 && candidate != 2) continue;
+                if (is_probably_prime(candidate)) {
+                    return candidate;
+                }
+            }
+            break;  // если дошли сюда, простых чисел нет
+        }
+    }
+    
+    // Если не нашли простое число за MAX_ATTEMPTS попыток
+    throw std::runtime_error("No prime numbers found in the range [" + 
+                           std::to_string(low) + ", " + std::to_string(high) + "]");
 }
 
 long long find_generator(long long p)
