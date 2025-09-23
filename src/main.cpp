@@ -104,8 +104,8 @@ int main()
             //* Случайные простые числа
             case 3:
             {
-                auto [a, b] = egcd_generate_random_pair(100, 20000);
-                cout << "\nСгенерированы простые числа: a = " << a << ", b = " << b << endl;
+                auto [a, b] = egcd_generate_prime_pair(100, 20000);
+                cout << "\nСгенерированы числа: a = " << a << ", b = " << b << endl;
                 auto [g, x, y] = egcd(a, b);
                 cout << "НОД(" << a << ", " << b << ") = " << g << endl;
                 cout << "x = " << x << ", y = " << y << endl;

@@ -125,8 +125,7 @@ std::tuple<long long, long long, long long> egcd(long long a, long long b)
 {
     if (a < b)
     {
-        throw std::invalid_argument(
-            "extended_gcd: expected a >= b, got a < b");
+        std::swap(a, b);
     }
     if (a <= 0 || b < 0)
     {
@@ -188,7 +187,7 @@ std::pair<long long, long long> API egcd_generate_prime_pair(long long min_a, lo
         max_a = min_a + 1000;
 
     long long a = generate_prime(min_a, max_a);
-    
+
     long long b;
     do
     {
