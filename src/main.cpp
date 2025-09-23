@@ -80,7 +80,7 @@ int main()
                     cout << "Число a должно быть больше или равно b. Попробуйте снова.\n";
                 }
 
-                auto [g, x, y] = extended_gcd(a, b);
+                auto [g, x, y] = egcd(a, b);
                 cout << "НОД(" << a << ", " << b << ") = " << g << endl;
                 cout << "x = " << x << ", y = " << y << endl;
                 cout << a << "*" << x << " + " << b << "*" << y << " = " << g << endl;
@@ -91,14 +91,9 @@ int main()
             //* Случайные числа
             case 2:
             {
-                a = 10 + rand() % 90;
-                do
-                {
-                    b = 10 + rand() % a;
-                } while (b > a);
+                auto [a, b] = egcd_generate_random_pair(100, 20000);
                 cout << "\nСгенерированы числа: a = " << a << ", b = " << b << endl;
-
-                auto [g, x, y] = extended_gcd(a, b);
+                auto [g, x, y] = egcd(a, b);
                 cout << "НОД(" << a << ", " << b << ") = " << g << endl;
                 cout << "x = " << x << ", y = " << y << endl;
                 cout << a << "*" << x << " + " << b << "*" << y << " = " << g << endl;
@@ -109,14 +104,9 @@ int main()
             //* Случайные простые числа
             case 3:
             {
-                a = generate_prime(10, 200);
-                do
-                {
-                    b = generate_prime(10, a);
-                } while (b > a);
+                auto [a, b] = egcd_generate_random_pair(100, 20000);
                 cout << "\nСгенерированы простые числа: a = " << a << ", b = " << b << endl;
-
-                auto [g, x, y] = extended_gcd(a, b);
+                auto [g, x, y] = egcd(a, b);
                 cout << "НОД(" << a << ", " << b << ") = " << g << endl;
                 cout << "x = " << x << ", y = " << y << endl;
                 cout << a << "*" << x << " + " << b << "*" << y << " = " << g << endl;

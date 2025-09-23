@@ -43,16 +43,37 @@ bool is_probably_prime(long long p, int k)
 
 long long generate_prime(long long low, long long high)
 {
-    long long num;
+    if (low < 2)
+        low = 2;
+    if (high < low)
+        std::swap(low, high);
 
-    do
+    // Найдём ближайшие нечётные границы
+    long long low_odd = (low % 2 == 0) ? std::max(low + 1, 3LL) : std::max(low, 3LL);
+    long long high_odd = (high % 2 == 0) ? high - 1 : high;
+
+    if (low_odd > high_odd)
+        throw std::runtime_error("generate_prime: no candidates in range");
+
+    // Количество нечётных кандидатов
+    long long count = (high_odd - low_odd) / 2 + 1;
+
+    // Начнём со случайного смещения среди нечётных, затем последовательно пройдём по всем
+    long long start_idx = 0;
+    if (count > 1)
+        start_idx = rand() % count;
+
+    for (long long i = 0; i < count; ++i)
     {
-        num = low + rand() % (high - low + 1);
-        if (num % 2 == 0)
-            num++;
-    } while (!is_probably_prime(num));
+        long long idx = (start_idx + i) % count;
+        long long candidate = low_odd + idx * 2;
 
-    return num;
+        // Увеличим количество раундов проверки для большей надёжности
+        if (is_probably_prime(candidate))
+            return candidate;
+    }
+
+    throw std::runtime_error("generate_prime: no prime found in the given range");
 }
 
 long long find_generator(long long p)
@@ -100,7 +121,7 @@ long long find_generator(long long p)
     return -1; // если не нашли
 }
 
-std::tuple<long long, long long, long long> extended_gcd(long long a, long long b)
+std::tuple<long long, long long, long long> egcd(long long a, long long b)
 {
     if (a < b)
     {
@@ -135,6 +156,46 @@ std::tuple<long long, long long, long long> extended_gcd(long long a, long long 
 
     // Теперь U = (gcd, x, y)
     return {u1, u2, u3};
+}
+
+//* Случайная пара чисел (a, b) с условием min_a <= b <= a <= max_a
+std::pair<long long, long long> API egcd_generate_random_pair(long long min_a, long long max_a)
+{
+    if (min_a < 1)
+        min_a = 1;
+    if (max_a <= min_a)
+        max_a = min_a + 1;
+
+    srand(time(0));
+
+    long long a = min_a + (rand() % (max_a - min_a + 1));
+    long long b;
+
+    if (a == min_a)
+        b = min_a;
+    else
+        b = min_a + (rand() % (a - min_a + 1));
+
+    return {a, b};
+}
+
+//* Генерация пары простых чисел в диапазоне [min_a, max_a]
+std::pair<long long, long long> API egcd_generate_prime_pair(long long min_a, long long max_a)
+{
+    if (min_a < 2)
+        min_a = 2;
+    if (max_a <= min_a)
+        max_a = min_a + 1000;
+
+    long long a = generate_prime(min_a, max_a);
+    
+    long long b;
+    do
+    {
+        b = generate_prime(min_a, max_a);
+    } while (b == a);
+
+    return {a, b};
 }
 
 long long API bsgs(long long a, long long y, long long p)
