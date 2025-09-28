@@ -35,7 +35,7 @@ int main()
             // === ТЕСТ 1: Расширенный алгоритм Евклида ===
             try
             {
-                auto [g, x, y] = extended_gcd(30, 18);
+                auto [g, x, y] = egcd(30, 18);
                 std::cout << "\n[extended_gcd] gcd(30,18) = " << g
                           << " , x = " << x << " , y = " << y << std::endl;
                 // Проверка: 30*x + 18*y == gcd
@@ -116,7 +116,7 @@ int main()
 
             for (auto t : tests)
             {
-                long long result = baby_step_giant_step(t.a, t.y, t.p);
+                long long result = bsgs(t.a, t.y, t.p);
                 cout << "a=" << t.a << ", y=" << t.y << ", p=" << t.p
                      << " -> x=" << result << endl;
             }
