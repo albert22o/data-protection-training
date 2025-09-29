@@ -5,42 +5,118 @@
 #include <cmath>
 #include <vector>
 #include <unordered_map>
+#include <random>
 
+// Статический генератор псевдослучайных чисел
+static std::mt19937_64 CRYPTO_RNG((unsigned)time(nullptr));
+
+// Массив малых простых чисел
+static const int SMALL_PRIMES_ARR[] = {
+    2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71,
+    73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 131, 137, 139, 149, 151,
+    157, 163, 167, 173, 179, 181, 191, 193, 197, 199, 211, 223, 227, 229, 233,
+    239, 241, 251, 257, 263, 269, 271, 277, 281, 283, 293, 307, 311, 313, 317,
+    331, 337, 347, 349, 353, 359, 367, 373, 379, 383, 389, 397, 401, 409, 419,
+    421, 431, 433, 439, 443, 449, 457, 461, 463, 467, 479, 487, 491, 499, 503,
+    509, 521, 523, 541, 547, 557, 563, 569, 571, 577, 587, 593, 599, 601, 607,
+    613, 617, 619, 631, 641, 643, 647, 653, 659, 661, 673, 677, 683, 691, 701,
+    709, 719, 727, 733, 739, 743, 751, 757, 761, 769, 773, 787, 797, 809, 811,
+    821, 823, 827, 829, 839, 853, 857, 859, 863, 877, 881, 883, 887, 907, 911,
+    919, 929, 937, 941, 947, 953, 967, 971, 977, 983, 991, 997};
+// Размер массива малых простых чисел
+static const int SMALL_PRIMES_COUNT = sizeof(SMALL_PRIMES_ARR) / sizeof(SMALL_PRIMES_ARR[0]);
+
+//* Безопасное возведение в степень по модулю
 long long mod_pow(long long base, long long exp, long long mod)
 {
-    long long result = 1;
+    if (mod <= 0)
+        throw std::invalid_argument("mod_pow: mod must be > 0");
+    long long result = 1 % mod;
     long long cur = base % mod;
+    if (cur < 0)
+        cur += mod;
 
     while (exp > 0)
     {
         if (exp & 1)
-        { // если младший бит = 1
-            result = (result * cur) % mod;
+        {
+            // используем 128-bit, чтобы избежать переполнения
+            __int128 t = (__int128)result * (__int128)cur;
+            result = (long long)(t % mod);
         }
-        cur = (cur * cur) % mod;
-        exp >>= 1; // сдвигаем exp на 1 бит влево
+        __int128 t2 = (__int128)cur * (__int128)cur;
+        cur = (long long)(t2 % mod);
+        exp >>= 1;
     }
     return result;
 }
 
-bool is_probably_prime(long long p, int k)
+//* Тест Миллера-Рабина на простоту + быстрая фильтрация
+bool is_probably_prime(long long n, int k)
 {
-    if (p < 4)
-        return p == 2 || p == 3; // простые малые числа
-
-    srand(time(0));
-
-    for (int i = 0; i < k; i++)
+    if (n < 2)
+        return false;
+    // небольшие простые
+    for (int i = 0; i < SMALL_PRIMES_COUNT; ++i)
     {
-        long long a = 2 + rand() % (p - 3); // случайное 2 <= a <= p-2
-        if (mod_pow(a, p - 1, p) != 1)
-        {
-            return false; // точно составное
-        }
+        int p = SMALL_PRIMES_ARR[i];
+        if (n == p)
+            return true;
+        if (n % p == 0)
+            return false;
     }
-    return true; // вероятно простое
+
+    // представим n-1 = d * 2^s
+    long long d = n - 1;
+    int s = 0;
+    while ((d & 1) == 0)
+    {
+        d >>= 1;
+        ++s;
+    }
+
+    auto try_composite = [&](long long a) -> bool
+    {
+        long long x = mod_pow(a, d, n);
+        if (x == 1 || x == n - 1)
+            return false;
+        for (int r = 1; r < s; ++r)
+        {
+            x = mod_pow(x, 2, n);
+            if (x == n - 1)
+                return false;
+            if (x == 1)
+                return true; // составное
+        }
+        return true; // точно составное
+    };
+
+    // Если пользователь указал k > 0, исполним k случайных тестов
+    if (k > 0)
+    {
+        std::uniform_int_distribution<unsigned long long> dist(2, (unsigned long long)(n - 2));
+        for (int i = 0; i < k; ++i)
+        {
+            long long a = (long long)dist(CRYPTO_RNG);
+            if (try_composite(a))
+                return false;
+        }
+        return true; // вероятно простое
+    }
+
+    // k <= 0: используем детерминированный набор оснований, достаточный для 64-bit.
+    long long bases[] = {2LL, 325LL, 9375LL, 28178LL, 450775LL, 9780504LL, 1795265022LL};
+    for (long long a : bases)
+    {
+        if (a % n == 0)
+            return true;
+        if (try_composite(a % n))
+            return false;
+    }
+    return true;
 }
 
+//* Генерация случайного простого числа в диапазоне low-high
 long long generate_prime(long long low, long long high)
 {
     if (low < 2)
@@ -48,32 +124,67 @@ long long generate_prime(long long low, long long high)
     if (high < low)
         std::swap(low, high);
 
-    // Найдём ближайшие нечётные границы
-    long long low_odd = (low % 2 == 0) ? std::max(low + 1, 3LL) : std::max(low, 3LL);
-    long long high_odd = (high % 2 == 0) ? high - 1 : high;
+    // корректируем границы к нечётным и минимум 3
+    long long lo = (low % 2 == 0) ? low + 1 : low;
+    if (lo < 3)
+        lo = 3;
+    long long hi = (high % 2 == 0) ? high - 1 : high;
+    if (lo > hi)
+        throw std::runtime_error("generate_prime: no candidates");
 
-    if (low_odd > high_odd)
-        throw std::runtime_error("generate_prime: no candidates in range");
+    long long range = (hi - lo) / 2 + 1;
+    std::uniform_int_distribution<unsigned long long> dist_idx(0, (unsigned long long)(range - 1));
 
-    // Количество нечётных кандидатов
-    long long count = (high_odd - low_odd) / 2 + 1;
-
-    // Начнём со случайного смещения среди нечётных, затем последовательно пройдём по всем
-    long long start_idx = 0;
-    if (count > 1)
-        start_idx = rand() % count;
-
-    for (long long i = 0; i < count; ++i)
+    const int MAX_RANDOM_TRIES = 2000;
+    const int MR_ROUNDS = 7; // количество раундов Miller-Rabin (при k>0)
+    for (int attempt = 0; attempt < MAX_RANDOM_TRIES; ++attempt)
     {
-        long long idx = (start_idx + i) % count;
-        long long candidate = low_odd + idx * 2;
-
-        // Увеличим количество раундов проверки для большей надёжности
-        if (is_probably_prime(candidate))
-            return candidate;
+        long long idx = (long long)dist_idx(CRYPTO_RNG);
+        long long cand = lo + idx * 2;
+        // trial division quickly
+        bool pass_trial = true;
+        for (int i = 0; i < SMALL_PRIMES_COUNT; ++i)
+        {
+            int p = SMALL_PRIMES_ARR[i];
+            if (cand == p)
+                return cand;
+            if (cand % p == 0)
+            {
+                pass_trial = false;
+                break;
+            }
+        }
+        if (!pass_trial)
+            continue;
+        if (is_probably_prime(cand, MR_ROUNDS))
+            return cand;
     }
 
-    throw std::runtime_error("generate_prime: no prime found in the given range");
+    // Если случайное не сработало, делаем последовательный проход
+    long long start_idx = dist_idx(CRYPTO_RNG);
+    for (long long i = 0; i < range; ++i)
+    {
+        long long idx = (start_idx + i) % range;
+        long long cand = lo + idx * 2;
+        bool pass_trial = true;
+        for (int j = 0; j < SMALL_PRIMES_COUNT; ++j)
+        {
+            int p = SMALL_PRIMES_ARR[j];
+            if (cand == p)
+                return cand;
+            if (cand % p == 0)
+            {
+                pass_trial = false;
+                break;
+            }
+        }
+        if (!pass_trial)
+            continue;
+        if (is_probably_prime(cand, MR_ROUNDS))
+            return cand;
+    }
+
+    throw std::runtime_error("generate_prime: no prime found in range");
 }
 
 long long find_generator(long long p)
@@ -123,10 +234,6 @@ long long find_generator(long long p)
 
 std::tuple<long long, long long, long long> egcd(long long a, long long b)
 {
-    if (a < b)
-    {
-        std::swap(a, b);
-    }
     if (a <= 0 || b < 0)
     {
         throw std::invalid_argument(

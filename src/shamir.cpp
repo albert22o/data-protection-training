@@ -5,242 +5,294 @@
 #include <string>
 #include <stdexcept>
 #include <cstring>
+#include <random>
+#include <chrono>
+#include <tuple>
 
-//! === Вспоомгательные функции для работы с байтами ===
+using ull = unsigned long long;
+using ll = long long;
 
-long long bytes_to_long(const std::vector<unsigned char> &bytes)
+// --- Вспомогательные: чтение/запись LE 64-bit ---
+static void write_le64(std::ostream &os, ull x)
 {
-    long long result = 0;
-    for (unsigned char byte : bytes)
+    for (int i = 0; i < 8; ++i)
+        os.put(char((x >> (8 * i)) & 0xFF));
+}
+static ull read_le64(std::istream &is)
+{
+    ull x = 0;
+    for (int i = 0; i < 8; ++i)
     {
-        result = (result << 8) | byte;
+        int c = is.get();
+        if (c == EOF)
+            throw std::runtime_error("Unexpected EOF while read_le64");
+        x |= (ull)(unsigned char)c << (8 * i);
     }
-    return result;
+    return x;
 }
 
-std::vector<unsigned char> long_to_bytes(long long value, size_t length)
+// --- Байты <-> число (big-endian) ---
+// Внутри используем unsigned long long для безопасности
+static ull bytes_to_ull(const std::vector<unsigned char> &bytes)
 {
-    std::vector<unsigned char> result(length);
-    for (int i = length - 1; i >= 0; i--)
+    ull r = 0;
+    for (unsigned char b : bytes)
+        r = (r << 8) | (ull)b;
+    return r;
+}
+static std::vector<unsigned char> ull_to_bytes(ull v, size_t out_len)
+{
+    std::vector<unsigned char> res(out_len, 0);
+    for (int i = (int)out_len - 1; i >= 0; --i)
     {
-        result[i] = value & 0xFF;
-        value >>= 8;
+        res[i] = (unsigned char)(v & 0xFFu);
+        v >>= 8;
     }
-    return result;
+    return res;
 }
 
-//! === Основные функции ===
-
-std::tuple<long long, long long> generate_shamir_keys(long long p)
+// --- подсчёт, сколько байт нужно для представления x (x > 0) ---
+static int bytes_needed_for_value(ull x)
 {
-    long long phi = p - 1, c, d;
+    int b = 0;
+    while (x)
+    {
+        ++b;
+        x >>= 8;
+    }
+    return b ? b : 1;
+}
 
+// --- генерация пары (c,d) для Шамира. Используем mt19937_64 ---
+static std::mt19937_64 &global_rng()
+{
+    static std::mt19937_64 rng((unsigned)std::chrono::high_resolution_clock::now().time_since_epoch().count());
+    return rng;
+}
+
+std::tuple<ll, ll> generate_shamir_keys(ll p)
+{
+    if (p <= 3)
+        throw std::runtime_error("p must be > 3");
+    ull phi = (ull)(p - 1);
+    std::uniform_int_distribution<ull> dist(2, phi - 1);
+
+    for (int attempts = 0; attempts < 1000000; ++attempts)
+    {
+        ull c = dist(global_rng());
+        // проверяем взаимную простоту
+        auto eg = egcd((long long)c, (long long)phi);
+        ll g = std::get<0>(eg);
+        ll x = std::get<1>(eg);
+        if (g != 1)
+            continue;
+        // d = x mod phi
+        ll d = (ll)(x % (ll)phi);
+        if (d < 0)
+            d += (ll)phi;
+        // проверка: c * d % phi == 1
+        ull check = (((__int128)c * (ull)d) % phi);
+        if (check != 1ULL)
+            continue;
+        // дополнительная простая проверка на корректность
+        ll test = 123;
+        ll enc = mod_pow(test, (long long)c, p);
+        ll dec = mod_pow(enc, d, p);
+        if (dec == test)
+            return {(long long)c, d};
+    }
+    throw std::runtime_error("generate_shamir_keys: cannot find keys");
+}
+
+//* Шифрование: используем формат заголовка и согласованные блоки
+void shamir_encrypt(const std::string &input_file, const std::string &output_file,
+                    ll p, ll cA, ll dA, ll cB)
+{
+    std::ifstream fin(input_file, std::ios::binary);
+    std::ofstream fout(output_file, std::ios::binary);
+    if (!fin)
+        throw std::runtime_error("Cannot open input file");
+    if (!fout)
+        throw std::runtime_error("Cannot open output file");
+
+    // plain_block: max байт, чтобы value < p
+    int pbits = 0;
+    for (ull t = (ull)p; t; t >>= 1)
+        ++pbits;
+    size_t plain_block = std::max<size_t>(1, (pbits - 1) / 8);
+    size_t cipher_block = std::max<size_t>(1, bytes_needed_for_value((ull)(p - 1)));
+
+    // header: "SHAM", plain_block(1), cipher_block(1), p(8LE), orig_size(8LE)
+    fout.write("SHAM", 4);
+    fout.put((char)plain_block);
+    fout.put((char)cipher_block);
+    write_le64(fout, (ull)p);
+    fin.seekg(0, std::ios::end);
+    ull orig_size = (ull)fin.tellg();
+    fin.seekg(0, std::ios::beg);
+    write_le64(fout, orig_size);
+
+    std::vector<unsigned char> inbuf(plain_block);
     while (true)
     {
-        // генерируем случайное C взаимно простое с p-1
-        c = 2 + (rand() % (phi - 2));
-        auto [gcd, x, y] = egcd(c, phi);
+        fin.read(reinterpret_cast<char *>(inbuf.data()), (std::streamsize)plain_block);
+        std::streamsize got = fin.gcount();
+        if (got <= 0)
+            break;
+        if ((size_t)got < plain_block)
+            std::fill(inbuf.begin() + got, inbuf.end(), 0);
 
-        if (gcd == 1)
-        {
-            d = x % phi;
-            if (d < 0)
-                d += phi;
-
-            // Проверяем, чт оключи работают правильно
-            long long test = 123;
-            long long encrypyed = mod_pow(test, c, p);
-            long long decrypted = mod_pow(encrypyed, d, p);
-
-            if (decrypted == test)
-                return {c, d};
-        }
-    }
-}
-
-void shamir_encrypt(const std::string &input_file, const std::string &output_file,
-                    long long p, long long cA, long long dA, long long cB)
-{
-    std::ifstream in(input_file, std::ios::binary);
-    std::ofstream out(output_file, std::ios::binary);
-
-    if (!in)
-        throw std::runtime_error("Cannot open input file");
-    if (!out)
-        throw std::runtime_error("Cannot open output file");
-
-    // Определяем размер блока (максимальное число байт, чтобы значение было < p)
-    size_t block_size = 1;
-    long long max_value = 255; // 1 байт
-
-    while (max_value * 256 + 255 < p)
-    {
-        block_size++;
-        max_value = max_value * 256 + 255;
-    }
-
-    // Записываем размер блока в начало файла
-    int block_size_int = static_cast<int>(block_size);
-    out.write(reinterpret_cast<const char *>(&block_size_int), sizeof(block_size_int));
-
-    // Обрабатываем файл блоками
-    std::vector<unsigned char> buffer(block_size);
-
-    while (in.read(reinterpret_cast<char *>(buffer.data()), block_size) || in.gcount() > 0)
-    {
-        size_t bytes_read = static_cast<size_t>(in.gcount());
-
-        // Дополняем последний блок нулями если нужно
-        if (bytes_read < block_size)
-        {
-            std::fill(buffer.begin() + bytes_read, buffer.end(), 0);
-        }
-
-        // Преобразуем байты в число
-        long long m = bytes_to_long(buffer);
-
-        if (m >= p)
-        {
+        ull m = bytes_to_ull(inbuf);
+        if (m >= (ull)p)
             throw std::runtime_error("Message block is too large for prime p");
-        }
 
-        // Выполняем протокол Шамира
-        long long x1 = mod_pow(m, cA, p);  // Шаг 1: A -> B
-        long long x2 = mod_pow(x1, cB, p); // Шаг 2: B -> A
-        long long x3 = mod_pow(x2, dA, p); // Шаг 3: A -> B
+        // Шаги Шамира
+        ll x1 = mod_pow((long long)m, cA, p);
+        ll x2 = mod_pow(x1, cB, p);
+        ll x3 = mod_pow(x2, dA, p);
 
-        // Записываем зашифрованный блок
-        auto encrypted_bytes = long_to_bytes(x3, sizeof(long long));
-        out.write(reinterpret_cast<const char *>(encrypted_bytes.data()), encrypted_bytes.size());
-
-        // Очищаем буфер для следующего блока
-        buffer.assign(block_size, 0);
+        auto enc_bytes = ull_to_bytes((ull)x3, cipher_block);
+        fout.write(reinterpret_cast<const char *>(enc_bytes.data()), (std::streamsize)cipher_block);
     }
 }
 
+//* Расшифровка: читаем заголовок, применяем dB и возвращаем исходный размер
 void shamir_decrypt(const std::string &input_file, const std::string &output_file,
-                    long long p, long long dB)
+                    ll p, ll dB)
 {
-    std::ifstream in(input_file, std::ios::binary);
-    std::ofstream out(output_file, std::ios::binary);
-
-    if (!in)
+    std::ifstream fin(input_file, std::ios::binary);
+    std::ofstream fout(output_file, std::ios::binary);
+    if (!fin)
         throw std::runtime_error("Cannot open input file");
-    if (!out)
+    if (!fout)
         throw std::runtime_error("Cannot open output file");
 
-    // Читаем размер блока
-    int block_size_int;
-    in.read(reinterpret_cast<char *>(&block_size_int), sizeof(block_size_int));
-    size_t block_size = static_cast<size_t>(block_size_int);
+    char magic[4];
+    fin.read(magic, 4);
+    if (fin.gcount() != 4 || std::strncmp(magic, "SHAM", 4) != 0)
+        throw std::runtime_error("Bad format");
 
-    // Обрабатываем файл блоками
-    std::vector<unsigned char> buffer(sizeof(long long));
-
-    while (in.read(reinterpret_cast<char *>(buffer.data()), sizeof(long long)))
+    int plain_block = (unsigned char)fin.get();
+    int cipher_block = (unsigned char)fin.get();
+    ll p_from_file = (ll)read_le64(fin);
+    ull orig_size = read_le64(fin);
+    if (p_from_file != p)
     {
-        // Преобразуем байты в число
-        long long x3 = bytes_to_long(buffer);
+        // можно просто использовать p_from_file, но лучше предупредить
+        throw std::runtime_error("Prime p mismatch between key and cipher file");
+    }
 
-        // Выполняем шаг 4 протокола Шамира
-        long long m = mod_pow(x3, dB, p);
+    std::vector<unsigned char> inbuf(cipher_block);
+    ull written = 0;
+    while (true)
+    {
+        fin.read(reinterpret_cast<char *>(inbuf.data()), cipher_block);
+        std::streamsize got = fin.gcount();
+        if (got <= 0)
+            break;
+        if ((size_t)got != (size_t)cipher_block)
+            throw std::runtime_error("Incomplete cipher block");
 
-        // Преобразуем число обратно в байты
-        auto decrypted_bytes = long_to_bytes(m, block_size);
+        ull x3 = bytes_to_ull(inbuf);
+        // шаг 4: apply dB
+        ll m_ll = mod_pow((long long)x3, dB, p);
+        ull m = (ull)m_ll;
+        auto outb = ull_to_bytes(m, (size_t)plain_block);
 
-        // Записываем расшифрованные байты
-        out.write(reinterpret_cast<const char *>(decrypted_bytes.data()), decrypted_bytes.size());
+        // trim if last block
+        ull remain = orig_size - written;
+        size_t towrite = (size_t)std::min<ull>((ull)plain_block, remain);
+        fout.write(reinterpret_cast<const char *>(outb.data()), (std::streamsize)towrite);
+        written += towrite;
     }
 }
 
-void generate_keys(const std::string &key_file, long long min_prime, long long max_prime)
+// --- Ключи: генерация и загрузка/сохранение ---
+void generate_keys(const std::string &key_file, ll min_prime, ll max_prime)
 {
-    long long p = generate_prime(min_prime, max_prime);
-
-    // Генерируем ключи для Алисы и Боба
+    ll p = generate_prime(min_prime, max_prime); // из вашей библиотеки
     auto [cA, dA] = generate_shamir_keys(p);
     auto [cB, dB] = generate_shamir_keys(p);
 
-    // Сохраняем ключи в файл
-    std::ofstream key_out(key_file);
-    key_out << p << std::endl;
-    key_out << cA << std::endl;
-    key_out << dA << std::endl;
-    key_out << cB << std::endl;
-    key_out << dB << std::endl;
+    std::ofstream kf(key_file);
+    if (!kf)
+        throw std::runtime_error("Cannot write keys file");
+    kf << p << "\n"
+       << cA << "\n"
+       << dA << "\n"
+       << cB << "\n"
+       << dB << "\n";
 }
 
-std::tuple<long long, long long, long long, long long, long long> load_keys(const std::string &key_file)
+std::tuple<ll, ll, ll, ll, ll> load_keys(const std::string &key_file)
 {
-    std::ifstream key_in(key_file);
-    long long p, cA, dA, cB, dB;
-    key_in >> p >> cA >> dA >> cB >> dB;
+    std::ifstream kf(key_file);
+    if (!kf)
+        throw std::runtime_error("Cannot open keys file");
+    ll p, cA, dA, cB, dB;
+    kf >> p >> cA >> dA >> cB >> dB;
+    if (!kf)
+        throw std::runtime_error("Bad keys file format");
     return {p, cA, dA, cB, dB};
 }
 
+// --- CLI ---
 int main(int argc, char *argv[])
 {
     if (argc < 2)
     {
-        std::cout << "Usage:" << std::endl;
-        std::cout << "  " << argv[0] << " genkeys <key_file> [min_prime] [max_prime]" << std::endl;
-        std::cout << "  " << argv[0] << " encrypt <input_file> <output_file> <key_file>" << std::endl;
-        std::cout << "  " << argv[0] << " decrypt <input_file> <output_file> <key_file>" << std::endl;
+        std::cout << "Usage:\n  " << argv[0] << " genkeys <key_file> [min_prime] [max_prime]\n"
+                  << "  " << argv[0] << " encrypt <input> <output> <key_file>\n"
+                  << "  " << argv[0] << " decrypt <input> <output> <key_file>\n";
         return 1;
     }
 
-    std::string command = argv[1];
-    srand(time(0));
-
+    std::string cmd = argv[1];
     try
     {
-        if (command == "genkeys")
+        if (cmd == "genkeys")
         {
             if (argc < 3)
             {
-                std::cout << "Usage: " << argv[0] << " genkeys <key_file> [min_prime] [max_prime]" << std::endl;
+                std::cerr << "genkeys <key_file> [min] [max]\n";
                 return 1;
             }
-
-            long long min_prime = (argc > 3) ? std::stoll(argv[3]) : 1000;
-            long long max_prime = (argc > 4) ? std::stoll(argv[4]) : 10000;
-
-            generate_keys(argv[2], min_prime, max_prime);
-            std::cout << "Keys generated and saved to " << argv[2] << std::endl;
+            ll minp = (argc > 3) ? std::stoll(argv[3]) : 1000;
+            ll maxp = (argc > 4) ? std::stoll(argv[4]) : 10000;
+            generate_keys(argv[2], minp, maxp);
+            std::cout << "keys saved to " << argv[2] << "\n";
         }
-        else if (command == "encrypt")
+        else if (cmd == "encrypt")
         {
             if (argc < 5)
             {
-                std::cout << "Usage: " << argv[0] << " encrypt <input_file> <output_file> <key_file>" << std::endl;
+                std::cerr << "encrypt <in> <out> <key_file>\n";
                 return 1;
             }
-
             auto [p, cA, dA, cB, dB] = load_keys(argv[4]);
             shamir_encrypt(argv[2], argv[3], p, cA, dA, cB);
-            std::cout << "File encrypted successfully" << std::endl;
+            std::cout << "encrypted\n";
         }
-        else if (command == "decrypt")
+        else if (cmd == "decrypt")
         {
             if (argc < 5)
             {
-                std::cout << "Usage: " << argv[0] << " decrypt <input_file> <output_file> <key_file>" << std::endl;
+                std::cerr << "decrypt <in> <out> <key_file>\n";
                 return 1;
             }
-
             auto [p, cA, dA, cB, dB] = load_keys(argv[4]);
             shamir_decrypt(argv[2], argv[3], p, dB);
-            std::cout << "File decrypted successfully" << std::endl;
+            std::cout << "decrypted\n";
         }
         else
         {
-            std::cout << "Unknown command: " << command << std::endl;
+            std::cerr << "Unknown command\n";
             return 1;
         }
     }
     catch (const std::exception &e)
     {
-        std::cerr << "Error: " << e.what() << std::endl;
+        std::cerr << "Error: " << e.what() << "\n";
         return 1;
     }
     return 0;
