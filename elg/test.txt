@@ -1,0 +1,5 @@
+Hello, ElGamal Cipher!
+This is a test message for ElGamal encryption.
+Проверка работы с русским текстом
+Test with numbers: 1234567890
+Special characters: !@#$%^&*()

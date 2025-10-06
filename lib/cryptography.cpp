@@ -388,8 +388,8 @@ std::tuple<long long, long long, long long, long long> API dh_generate_random_pa
     long long p = 0;
     long long q = 0;
 
-    const long long MIN_Q = 5000;
-    const long long RANGE_Q = 25000;
+    const long long MIN_Q = 500000;
+    const long long RANGE_Q = 10000000;
 
     while (true)
     {
