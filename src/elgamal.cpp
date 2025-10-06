@@ -178,7 +178,7 @@ void generate_elgamal_keys(const std::string &key_file, ll min_prime, ll max_pri
         throw std::runtime_error("Cannot find primitive root");
 
     ull c = rand_range_ull(2, p - 2);
-    ull d = (ull)mod_pow((ll)g, (ll)c, (ll)p);
+    ull d = (ull)mod_pow((ll)g, (ll)c, (ll)p); // d = g^c mod p
 
     save_keyfile(key_file, p, g, d, c);
 }
@@ -204,12 +204,14 @@ void elgamal_encrypt(const std::string &input_file, const std::string &output_fi
     if (!fout)
         throw std::runtime_error("Cannot open output file");
 
+    // Определяем размеры блоков
     int pbits = 0;
     for (ull t = p; t; t >>= 1)
         ++pbits;
     size_t plain_block = std::max<size_t>(1, (pbits - 1) / 8);
     size_t cipher_block = std::max<size_t>(1, bytes_needed_for_value(p - 1));
 
+    // Записываем заголовок в файл
     fout.write("ELG1", 4);
     fout.put((char)plain_block);
     fout.put((char)cipher_block);
@@ -220,6 +222,7 @@ void elgamal_encrypt(const std::string &input_file, const std::string &output_fi
     fin.seekg(0, std::ios::beg);
     write_le64(fout, orig_size);
 
+    // Чтение и шифрование блоков
     std::vector<unsigned char> inbuf(plain_block);
     while (true)
     {
@@ -227,6 +230,7 @@ void elgamal_encrypt(const std::string &input_file, const std::string &output_fi
         std::streamsize got = fin.gcount();
         if (got <= 0)
             break;
+        // Дополняем блок нулями, если он меньше plain_block
         if ((size_t)got < plain_block)
             std::fill(inbuf.begin() + got, inbuf.end(), 0);
 
@@ -235,11 +239,11 @@ void elgamal_encrypt(const std::string &input_file, const std::string &output_fi
             throw std::runtime_error("Message block too large for p");
 
         ull k = rand_range_ull(1, p - 2);
-        ull r = (ull)mod_pow((ll)g, (ll)k, (ll)p);
-        ull s = (ull)mod_pow((ll)d, (ll)k, (ll)p);
+        ull r = (ull)mod_pow((ll)g, (ll)k, (ll)p); // r = g^k mod p
+        ull s = (ull)mod_pow((ll)d, (ll)k, (ll)p); // s = mod_pow(d, k, p);
+        ull e = modmul_u128(m, s, p);              // e = (m * s) mod p
 
-        ull e = modmul_u128(m, s, p);
-
+        // Записываем в файл r (8 байт LE) и e (cipher_block байт BE)
         write_le64(fout, r);
         auto ebytes = ull_to_bytes(e, cipher_block);
         fout.write(reinterpret_cast<const char *>(ebytes.data()), (std::streamsize)cipher_block);
@@ -257,6 +261,7 @@ void elgamal_decrypt(const std::string &input_file, const std::string &output_fi
     if (!fout)
         throw std::runtime_error("Cannot open output file");
 
+    // Читаем заголовок
     char magic[4];
     fin.read(magic, 4);
     if (fin.gcount() != 4 || std::strncmp(magic, "ELG1", 4) != 0)
@@ -269,6 +274,7 @@ void elgamal_decrypt(const std::string &input_file, const std::string &output_fi
     if (p_from_file != p)
         throw std::runtime_error("Prime p mismatch between key and cipher file");
 
+    // Читаем и расшифровываем блоки
     std::vector<unsigned char> ebuf(cipher_block);
     ull written = 0;
     while (true)
@@ -287,8 +293,9 @@ void elgamal_decrypt(const std::string &input_file, const std::string &output_fi
             throw std::runtime_error("Incomplete cipher block");
 
         ull e = bytes_to_ull(ebuf);
-        ull s = (ull)mod_pow((ll)r, (ll)c_private, (ll)p);
+        ull s = (ull)mod_pow((ll)r, (ll)c_private, (ll)p); // s = r^c mod p
 
+        // Находим s_inv по модулю p через расширенный алгоритм Евклида
         auto eg = egcd((ll)s, (ll)p);
         ll g = std::get<0>(eg);
         ll x = std::get<1>(eg);
@@ -299,8 +306,9 @@ void elgamal_decrypt(const std::string &input_file, const std::string &output_fi
             inv += (ll)p;
         ull s_inv = (ull)inv;
 
-        ull m = modmul_u128(e, s_inv, p);
+        ull m = modmul_u128(e, s_inv, p); // m = (e * s_inv) mod p
 
+        // Записываем в файл (учитываем оригинальный размер — обрезаем нули в конце)
         auto outb = ull_to_bytes(m, (size_t)plain_block);
         ull remain = orig_size - written;
         size_t towrite = (size_t)std::min<ull>((ull)plain_block, remain);
