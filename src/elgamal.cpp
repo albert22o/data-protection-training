@@ -90,54 +90,6 @@ static ull modmul_u128(ull a, ull b, ull mod)
     return (ull)(t % mod);
 }
 
-// Факторизация n простыми делителями (тривиальный метод, годится для небольших n)
-static std::vector<ull> factorize(ull n)
-{
-    std::vector<ull> res;
-    if (n % 2 == 0)
-    {
-        res.push_back(2);
-        while (n % 2 == 0)
-            n /= 2;
-    }
-    for (ull f = 3; f * f <= n; f += 2)
-    {
-        if (n % f == 0)
-        {
-            res.push_back(f);
-            while (n % f == 0)
-                n /= f;
-        }
-    }
-    if (n > 1)
-        res.push_back(n);
-    return res;
-}
-
-// Поиск примитивного корня g для простого p, использует факторизацию p-1
-static ull find_primitive_root(ull p)
-{
-    ull phi = p - 1;
-    auto factors = factorize(phi);
-    for (ull g = 2; g + 1 < p; ++g)
-    {
-        bool ok = true;
-        for (ull q : factors)
-        {
-            ull exp = phi / q;
-            ll r = mod_pow((ll)g, (ll)exp, (ll)p);
-            if ((ull)r == 1ULL)
-            {
-                ok = false;
-                break;
-            }
-        }
-        if (ok)
-            return g;
-    }
-    return 0;
-}
-
 // Сохранение ключей в текстовый файл: p g d c
 static void save_keyfile(const std::string &path, ull p, ull g, ull d, ull c)
 {
@@ -168,14 +120,32 @@ static std::tuple<ull, ull, ull, ull> load_keyfile(const std::string &path)
 // Генерация ключей Эль-Гамаля: генерируется простое p, ищется g, генерируется секретный c, вычисляется d = g^c mod p
 void generate_elgamal_keys(const std::string &key_file, ll min_prime, ll max_prime)
 {
-    ll p_ll = generate_prime(min_prime, max_prime);
-    if (p_ll <= 3)
-        throw std::runtime_error("generate_prime returned small p");
-    ull p = (ull)p_ll;
+    ll p = 0;
+    ll q = 0;
 
-    ull g = find_primitive_root(p);
-    if (g == 0)
-        throw std::runtime_error("Cannot find primitive root");
+    while (true)
+    {
+        ll candidate_q = generate_prime(min_prime, max_prime);
+        ll candidate_p = 2 * candidate_q + 1;
+        if (candidate_p <= 2)
+            continue;
+
+        if (is_probably_prime(candidate_p))
+        {
+            q = candidate_q;
+            p = candidate_p;
+            break;
+        }
+    }
+
+    ll g = 0;
+
+    while (true)
+    {
+        g = 2 + (rand() % (p - 3));
+        if (mod_pow(g, q, p) != 1)
+            break;
+    }
 
     ull c = rand_range_ull(2, p - 2);
     ull d = (ull)mod_pow((ll)g, (ll)c, (ll)p); // d = g^c mod p
