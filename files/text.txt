@@ -1,0 +1,5 @@
+This is the test message
+Numbers: 1234567890
+Special characters: !@#$%^&*
+Кириллица
+ 
