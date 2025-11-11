@@ -1,2 +1,0 @@
-Hello, Vernam–Diffie–Hellman!
-This is a test message encrypted using Vernam cipher with DH key generation.
