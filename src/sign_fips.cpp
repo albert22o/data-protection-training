@@ -1,9 +1,16 @@
-// sign_gost.cpp
-// ГОСТ Р 34.10-94 — учебная реализация (p ~31 bits, q ~16 bits).
-// Исправлена формула вычисления s: s = (k*h + x*r) mod q (ГОСТ), а не DSA-style inverse.
+/*
+! Компиляция и запуск
+g++ -fPIC -shared lib/cryptography.cpp -o build/libcryptography.so -std=c++17 -Wall -O2
+g++ src/sign_fips.cpp -Ilib -Lbuild -lcryptography -lcrypto -o build/sign_fips -std=c++17 -Wall -O2
+cd build/
+./sign_fips genparams ../files/params.txt 31 16
+./sign_fips genkeys ../files/alice.key ../files/params.txt
+./sign_fips sign ../files/text.txt ../files/text.sig ../files/alice.key
+./sign_fips verify ../files/text.txt ../files/text.sig ../files/alice.key
+*/
 
 #include <bits/stdc++.h>
-#include "cryptography.h" // должен содержать mod_pow, is_probably_prime, generate_prime, egcd
+#include "cryptography.h"
 #include <openssl/sha.h>
 using namespace std;
 using ll = long long;
@@ -169,7 +176,6 @@ static void cmd_genparams(const string &out_path, int bits_p = 31, int bits_q = 
     if (!found)
         throw runtime_error("Failed to find p = b*q + 1");
 
-    
     ll a = 0;
     uniform_int_distribution<long long> dist_g(2, max(2LL, p - 2));
     for (int tries = 0; tries < 200000 && a == 0; ++tries)
@@ -225,7 +231,7 @@ static void cmd_sign(const string &infile, const string &sigfile, const string &
     for (int tries = 0; tries < 200000; ++tries)
     {
         ll k = distk(rng);
-        
+
         if (std::gcd((long long)k, (long long)q) != 1)
             continue;
         ll ak = mod_pow(a, k, p);
@@ -233,8 +239,10 @@ static void cmd_sign(const string &infile, const string &sigfile, const string &
         if (r == 0)
             continue;
 
-        __int128 tmp = (__int128)k * (__int128)h + (__int128)x * (__int128)r;
-        s = (ll)(tmp % q);
+        // FIPS/DSA формула: s = k^{-1} * (h + x*r) mod q
+        ll k_inv = modinv_safe(k, q);
+        __int128 tmp = (__int128)h + (__int128)x * (__int128)r;
+        s = mod_mul_safe(k_inv, (ll)(tmp % q), q);
         if (s == 0)
             continue;
         break;
@@ -284,13 +292,14 @@ static void cmd_verify(const string &infile, const string &sigfile, const string
     if (h == 0)
         h = 1;
 
-    ll v = modinv_safe(h, q);
-    ll z1 = ((__int128)s * v) % q;
-    ll z2 = ((__int128)(q - r) * v) % q;
+    // FIPS/DSA формула: u1 = h*s^{-1} mod q, u2 = r*s^{-1} mod q
+    ll w = modinv_safe(s, q);
+    ll u1 = mod_mul_safe(h, w, q);
+    ll u2 = mod_mul_safe(r, w, q);
 
-    ll u1 = mod_pow(a, z1, p);
-    ll u2 = mod_pow(y, z2, p);
-    ll prod = mod_mul_safe(u1, u2, p);
+    ll u1_pow = mod_pow(a, u1, p);
+    ll u2_pow = mod_pow(y, u2, p);
+    ll prod = mod_mul_safe(u1_pow, u2_pow, p);
     ll u = prod % q;
 
     if (u == r)
